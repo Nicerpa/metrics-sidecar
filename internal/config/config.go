@@ -15,6 +15,7 @@ type Config struct {
 	DBPath          string
 	MetricsEndpoint string
 	HealthEndpoint  string
+	MetricsFormat   string // "prometheus" or "json"
 }
 
 func LoadFromCLI() *Config {
@@ -25,6 +26,7 @@ func LoadFromCLI() *Config {
 		logLevel        = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 		metricsEndpoint = flag.String("metrics-endpoint", "/metrics", "Endpoint path for metrics collection")
 		healthEndpoint  = flag.String("health-endpoint", "/health", "Endpoint path for health checks")
+		metricsFormat   = flag.String("metrics-format", "prometheus", "Metrics output format (prometheus or json)")
 		help            = flag.Bool("help", false, "Show help message")
 	)
 
@@ -36,6 +38,7 @@ func LoadFromCLI() *Config {
 		fmt.Fprintf(os.Stderr, "\nExample:\n")
 		fmt.Fprintf(os.Stderr, "  %s -listen-port 8080 -proxy-port 3000\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -listen-port 9090 -proxy-host example.com -proxy-port 80\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -listen-port 8080 -proxy-port 3000 -metrics-format json\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -listen-port 8080 -proxy-port 3000 -metrics-endpoint /api/metrics -health-endpoint /api/health\n", os.Args[0])
 	}
 
@@ -60,6 +63,7 @@ func LoadFromCLI() *Config {
 		DBPath:          getEnv("DB_PATH", "./metrics.db"),
 		MetricsEndpoint: *metricsEndpoint,
 		HealthEndpoint:  *healthEndpoint,
+		MetricsFormat:   *metricsFormat,
 	}
 }
 
@@ -67,9 +71,10 @@ func Load() *Config {
 	port, _ := strconv.Atoi(getEnv("PORT", "8080"))
 
 	return &Config{
-		ListenPort: port,
-		LogLevel:   getEnv("LOG_LEVEL", "info"),
-		DBPath:     getEnv("DB_PATH", "./data.db"),
+		ListenPort:    port,
+		LogLevel:      getEnv("LOG_LEVEL", "info"),
+		DBPath:        getEnv("DB_PATH", "./data.db"),
+		MetricsFormat: getEnv("METRICS_FORMAT", "prometheus"),
 	}
 }
 

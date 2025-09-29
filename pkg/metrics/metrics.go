@@ -1,9 +1,13 @@
 package metrics
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type Metric struct {
@@ -35,11 +39,35 @@ type RequestCollector struct {
 	totalDuration int64
 	firstRequest  time.Time
 	lastRequest   time.Time
+
+	promRequests    *prometheus.CounterVec
+	promDuration    prometheus.Histogram
+	promRequestRate prometheus.Gauge
 }
 
 func NewRequestCollector() *RequestCollector {
 	return &RequestCollector{
 		statusCodes: make(map[int]int64),
+		promRequests: promauto.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Total number of HTTP requests",
+			},
+			[]string{"method", "status_code"},
+		),
+		promDuration: promauto.NewHistogram(
+			prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds",
+				Help:    "HTTP request duration in seconds",
+				Buckets: prometheus.DefBuckets,
+			},
+		),
+		promRequestRate: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "http_request_rate_per_second",
+				Help: "HTTP request rate per second",
+			},
+		),
 	}
 }
 
@@ -57,6 +85,12 @@ func (c *RequestCollector) Record(metric RequestMetric) {
 		c.firstRequest = metric.Timestamp
 	}
 	c.lastRequest = metric.Timestamp
+
+	c.promRequests.WithLabelValues(
+		metric.Method,
+		fmt.Sprintf("%d", metric.StatusCode),
+	).Inc()
+	c.promDuration.Observe(metric.Duration.Seconds())
 }
 
 func (c *RequestCollector) GetMetrics() RequestStats {
@@ -76,6 +110,8 @@ func (c *RequestCollector) GetMetrics() RequestStats {
 			duration := c.lastRequest.Sub(c.firstRequest)
 			if duration > 0 {
 				requestRate = float64(total) / duration.Seconds()
+				// Update Prometheus gauge
+				c.promRequestRate.Set(requestRate)
 			}
 		}
 	}

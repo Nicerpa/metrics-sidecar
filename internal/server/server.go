@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -92,6 +95,28 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = s.config.MetricsFormat
+	}
+
+	format = strings.ToLower(format)
+
+	switch format {
+	case "prometheus":
+		promhttp.Handler().ServeHTTP(w, r)
+	case "json":
+		s.handleJSONMetrics(w, r)
+	default:
+		if strings.ToLower(s.config.MetricsFormat) == "json" {
+			s.handleJSONMetrics(w, r)
+		} else {
+			promhttp.Handler().ServeHTTP(w, r)
+		}
+	}
+}
+
+func (s *Server) handleJSONMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics := s.collector.GetMetrics()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -130,7 +155,6 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 	r.ResponseWriter.WriteHeader(statusCode)
 }
 
-// MetricsTransport wraps the default transport to collect metrics
 type MetricsTransport struct {
 	collector *metrics.RequestCollector
 	transport http.RoundTripper
