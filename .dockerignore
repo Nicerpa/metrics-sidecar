@@ -1,0 +1,11 @@
+.git
+.gitignore
+*.md
+*_test.go
+main_test.go
+examples/
+metrics-sidecard
+.vscode/
+Dockerfile*
+docker-compose*
+.dockerignore
