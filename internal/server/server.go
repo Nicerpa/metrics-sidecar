@@ -17,7 +17,7 @@ import (
 type Server struct {
 	config    *config.Config
 	proxy     *httputil.ReverseProxy
-	collector *metrics.RequestCollector
+	collector metrics.MetricsCollector
 	targetURL *url.URL
 }
 
@@ -78,10 +78,10 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	s.proxy.ServeHTTP(recorder, r)
 
-	duration := time.Since(start)
+	duration := time.Since(start).Seconds()
 	s.collector.Record(metrics.RequestMetric{
 		Method:     r.Method,
-		Path:       r.URL.Path,
+		Handler:    r.URL.Path,
 		StatusCode: recorder.statusCode,
 		Duration:   duration,
 		Timestamp:  start,
@@ -100,49 +100,13 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		format = s.config.MetricsFormat
 	}
 
-	format = strings.ToLower(format)
-
-	switch format {
+	// TODO: Add other formats here
+	switch strings.ToLower(format) {
 	case "prometheus":
 		promhttp.Handler().ServeHTTP(w, r)
-	case "json":
-		s.handleJSONMetrics(w, r)
 	default:
-		if strings.ToLower(s.config.MetricsFormat) == "json" {
-			s.handleJSONMetrics(w, r)
-		} else {
-			promhttp.Handler().ServeHTTP(w, r)
-		}
+		promhttp.Handler().ServeHTTP(w, r)
 	}
-}
-
-func (s *Server) handleJSONMetrics(w http.ResponseWriter, r *http.Request) {
-	metrics := s.collector.GetMetrics()
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	fmt.Fprintf(w, `{
-	"total_requests": %d,
-	"request_rate": %.2f,
-	"avg_response_time_ms": %.2f,
-	"status_codes": {`,
-		metrics.TotalRequests,
-		metrics.RequestRate,
-		metrics.AvgResponseTime.Seconds()*1000)
-
-	first := true
-	for code, count := range metrics.StatusCodes {
-		if !first {
-			fmt.Fprintf(w, ",")
-		}
-		fmt.Fprintf(w, `
-		"%d": %d`, code, count)
-		first = false
-	}
-
-	fmt.Fprintf(w, `
-	}
-}`)
 }
 
 type responseRecorder struct {
@@ -156,7 +120,7 @@ func (r *responseRecorder) WriteHeader(statusCode int) {
 }
 
 type MetricsTransport struct {
-	collector *metrics.RequestCollector
+	collector metrics.MetricsCollector
 	transport http.RoundTripper
 }
 
