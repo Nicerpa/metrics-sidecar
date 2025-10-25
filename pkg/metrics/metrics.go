@@ -53,10 +53,12 @@ func NewPrometheusCollector() *PrometheusCollector {
 }
 
 func (p *PrometheusCollector) Record(metric RequestMetric) {
+	status := fmt.Sprintf("%dxx", metric.StatusCode/100)
+
 	labels := prometheus.Labels{
 		"method":  metric.Method,
 		"handler": metric.Handler,
-		"status":  fmt.Sprintf("%d", metric.StatusCode),
+		"status":  status,
 	}
 
 	p.requestsTotal.With(labels).Inc()
