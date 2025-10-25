@@ -3,6 +3,9 @@ BINARY_NAME=metrics-sidecard
 BUILD_DIR=bin
 MAIN_PATH=./main.go
 SERVER_PATH=./cmd/server
+VERSION=$(shell cat VERSION | tr -d '\n')
+DOCKER_IMAGE=nicerpa/metrics-sidecar
+DOCKER_TAG=$(DOCKER_IMAGE):$(VERSION)
 
 # Build the application (main.go)
 build:
@@ -74,6 +77,23 @@ build-server-all: clean
 	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-server-darwin-amd64 $(SERVER_PATH)
 	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BINARY_NAME)-server-windows-amd64.exe $(SERVER_PATH)
 
+# Docker build
+docker-build:
+	docker build -t $(DOCKER_TAG) .
+	docker tag $(DOCKER_TAG) $(DOCKER_IMAGE):latest
+
+# Docker push
+docker-push:
+	docker push $(DOCKER_TAG)
+	docker push $(DOCKER_IMAGE):latest
+
+# Docker build and push
+docker-release: docker-build docker-push
+
+# Show current version
+version:
+	@echo $(VERSION)
+
 # Help
 help:
 	@echo "Available targets:"
@@ -92,6 +112,10 @@ help:
 	@echo "  deps          - Install dependencies"
 	@echo "  build-all     - Build basic app for multiple platforms"
 	@echo "  build-server-all - Build sidecard for multiple platforms"
+	@echo "  docker-build  - Build Docker image with version tag"
+	@echo "  docker-push   - Push Docker image to registry"
+	@echo "  docker-release- Build and push Docker image"
+	@echo "  version       - Show current version"
 	@echo "  help          - Show this help message"
 
-.PHONY: build run test test-coverage clean fmt lint deps build-all help
+.PHONY: build run test test-coverage clean fmt lint deps build-all help docker-build docker-push docker-release version
